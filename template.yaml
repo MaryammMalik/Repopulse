@@ -2,13 +2,13 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   RepoPulse - Generates architecture overviews and contributor guides
-  for GitHub repositories using Google Gemini.
+  for GitHub repositories using Groq (Llama 3.3).
 
 Parameters:
-  GeminiApiKey:
+  GroqApiKey:
     Type: String
     NoEcho: true
-    Description: Google Gemini API key
+    Description: API key for Groq
 
 Globals:
   Function:
@@ -18,18 +18,17 @@ Globals:
     Environment:
       Variables:
         TABLE_NAME: !Ref RepoPulseTable
-        GEMINI_API_KEY: !Ref GeminiApiKey
+        GROQ_API_KEY: !Ref GroqApiKey
 
 Resources:
 
-  # ── Lambda Function ────────────────────────────────────────────────────────
   RepoPulseFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: RepoPulseFunction
       CodeUri: src/
       Handler: app.lambda_handler
-      Description: Fetches a GitHub repo, analyses it with Gemini, caches in DynamoDB.
+      Description: Fetches a GitHub repo, analyses it with Groq, caches in DynamoDB.
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
@@ -42,11 +41,9 @@ Resources:
           AllowHeaders:
             - Content-Type
       Policies:
-        # DynamoDB – read/write the cache table
         - DynamoDBCrudPolicy:
             TableName: !Ref RepoPulseTable
 
-  # ── DynamoDB Cache Table ───────────────────────────────────────────────────
   RepoPulseTable:
     Type: AWS::DynamoDB::Table
     Properties:

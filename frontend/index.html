@@ -192,6 +192,7 @@
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 999px; }
+    #diagram-container svg { width: 100% !important; height: auto !important; max-width: none !important; }
   </style>
 </head>
 <body>
@@ -207,7 +208,7 @@
 
   <nav>
     <span class="nav-logo">RepoPulse</span>
-    <span class="nav-badge">Powered by Gemini 2.0</span>
+    <span class="nav-badge">Powered by GPT-OSS 120B</span>
   </nav>
 
   <section class="hero">
@@ -370,7 +371,7 @@
   </section>
 
   <footer>
-    <p>RepoPulse &mdash; built with AWS Lambda &amp; Google Gemini &bull; <a href="https://github.com" target="_blank">GitHub</a></p>
+    <p>RepoPulse &mdash; built with AWS Lambda, DynamoDB & Groq &bull; <a href="https://github.com" target="_blank">GitHub</a></p>
   </footer>
 
 </div>
@@ -399,6 +400,7 @@
       fontFamily: 'Inter, sans-serif',
     },
     flowchart: { curve: 'basis', htmlLabels: true },
+    flowchart: { useMaxWidth: true },
     securityLevel: 'loose',
   });
 
@@ -537,9 +539,39 @@
   function showError(msg) { errorMsg.textContent = msg; show(errorCard); }
   function hideError()    { hide(errorCard); }
 
+  /* ── Mermaid sanitizer ───────────────────────────────────────────────────── */
+  function sanitizeMermaid(raw) {
+    // 1. Strip ```mermaid ... ``` or ``` ... ``` fences
+    let code = raw.trim();
+    code = code.replace(/^```mermaid\s*/i, '').replace(/^```\s*/i, '');
+    code = code.replace(/\s*```$/, '');
+    code = code.trim();
+
+    // 2. Quote node labels that contain special characters ( ) : & / \
+    //    but leave cylinder nodes DB[(label)] untouched.
+    //    Matches:  ID[label]  or  ID[label]
+    //    Skips:    ID[(label)]  (cylinder syntax)
+    code = code.replace(
+      /(\w+)\[(?!\()([^\]]+)\]/g,
+      (match, id, label) => {
+        // Already quoted — leave alone
+        if (label.startsWith('"') && label.endsWith('"')) return match;
+        // Only quote if label contains special chars
+        if (/[():/&\\]/.test(label)) {
+          // Escape any inner double-quotes
+          return `${id}["${label.replace(/"/g, '#quot;')}"]`;
+        }
+        return match;
+      }
+    );
+
+    return code;
+  }
+
   /* ── Diagram render — the whole thing ───────────────────────────────────── */
-  async function renderDiagram(code) {
+  async function renderDiagram(rawCode) {
     diagramContainer.innerHTML = '';
+    const code = sanitizeMermaid(rawCode);
     try {
       // mermaid.render() returns an SVG string. The container is already
       // visible (results section shown before this call), so Mermaid gets
@@ -553,9 +585,10 @@
         svgEl.removeAttribute('width');
         svgEl.removeAttribute('height');
       }
-    } catch {
+    } catch (err) {
+      console.error('Mermaid render error:', err);
       diagramContainer.innerHTML =
-        `<pre style="font-size:.75rem;color:var(--text-muted);white-space:pre-wrap;">${escapeHtml(code)}</pre>`;
+        `<pre style="font-size:.75rem;color:var(--text-muted);white-space:pre-wrap;">${escapeHtml(rawCode)}</pre>`;
     }
   }
 

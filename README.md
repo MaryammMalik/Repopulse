@@ -3,7 +3,7 @@
 **Understand any codebase in seconds.** Paste a GitHub repo URL and get an AI-generated contributor onboarding guide plus an architecture diagram.
 
 
-**Live app:** http://repopulse-maryam-2026.s3-website-us-east-1.amazonaws.com
+**Live app:** https://d27k708080feac.cloudfront.net
 
 ## What it does
 

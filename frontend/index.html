@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RepoPulse — Understand any codebase</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236366f1'/><polyline points='4,20 9,12 14,17 19,9 24,14 28,8' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+
+  <style>
+    /* ── Reset & tokens ───────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:        #080c18;
+      --bg-surface:     rgba(255,255,255,0.04);
+      --bg-surface-hov: rgba(255,255,255,0.07);
+      --border:         rgba(255,255,255,0.08);
+      --border-glow:    rgba(99,102,241,0.45);
+      --accent-1: #6366f1;
+      --accent-2: #a855f7;
+      --accent-3: #ec4899;
+      --text-primary:   #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-muted:     #475569;
+      --radius-sm:  8px;
+      --radius-md: 16px;
+      --radius-lg: 24px;
+      --shadow-card: 0 4px 24px rgba(0,0,0,0.5);
+      --font-heading: 'Space Grotesk', sans-serif;
+      --font-body:    'Inter', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--font-body); background: var(--bg-base); color: var(--text-primary); min-height: 100vh; overflow-x: hidden; }
+
+    /* ── Background ───────────────────────────────────────────────────────── */
+    .bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+    .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.35; animation: drift 18s ease-in-out infinite alternate; }
+    .orb-1 { width: 600px; height: 600px; background: radial-gradient(circle,#6366f1,transparent 70%); top: -200px; left: -150px; animation-duration: 20s; }
+    .orb-2 { width: 500px; height: 500px; background: radial-gradient(circle,#a855f7,transparent 70%); top: 10%; right: -100px; animation-duration: 15s; animation-delay: -5s; }
+    .orb-3 { width: 400px; height: 400px; background: radial-gradient(circle,#ec4899,transparent 70%); bottom: -100px; left: 40%; animation-duration: 22s; animation-delay: -8s; }
+    @keyframes drift { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px,-30px) scale(1.08); } 100% { transform: translate(-20px,20px) scale(.95); } }
+    .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size: 60px 60px; }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px 120px; }
+
+    /* ── Nav ──────────────────────────────────────────────────────────────── */
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 28px 0 0; }
+    .nav-logo { font-family: var(--font-heading); font-weight: 700; font-size: 1.25rem; letter-spacing: -.02em; background: linear-gradient(135deg,var(--accent-1),var(--accent-2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .nav-badge { font-size: .7rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); background: var(--bg-surface); border: 1px solid var(--border); padding: 4px 10px; border-radius: 999px; }
+
+    /* ── Hero ─────────────────────────────────────────────────────────────── */
+    .hero { text-align: center; padding: 96px 0 56px; }
+    .hero-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--accent-2); background: rgba(168,85,247,.1); border: 1px solid rgba(168,85,247,.25); padding: 6px 16px; border-radius: 999px; margin-bottom: 32px; }
+    .hero-eyebrow::before { content: ''; width: 6px; height: 6px; background: var(--accent-2); border-radius: 50%; animation: pulse-dot 2s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:.4; transform:scale(.7); } }
+    h1 { font-family: var(--font-heading); font-size: clamp(3rem,7vw,5.5rem); font-weight: 800; line-height: 1.05; letter-spacing: -.03em; margin-bottom: 24px; }
+    .h1-gradient { background: linear-gradient(135deg,#fff 0%,#c4b5fd 40%,#f9a8d4 80%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero-tagline { font-size: clamp(1rem,2.5vw,1.25rem); color: var(--text-secondary); font-weight: 400; line-height: 1.6; max-width: 520px; margin: 0 auto 48px; }
+
+    /* ── Example chips ────────────────────────────────────────────────────── */
+    .examples-row { display: flex; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+    .examples-label { font-size: .72rem; color: var(--text-muted); font-weight: 500; }
+    .example-chip { font-size: .75rem; font-weight: 500; color: var(--text-secondary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 999px; padding: 5px 13px; cursor: pointer; transition: color .15s, border-color .15s, background .15s, transform .15s; }
+    .example-chip:hover { color: var(--text-primary); border-color: rgba(99,102,241,.4); background: rgba(99,102,241,.08); transform: translateY(-1px); }
+
+    /* ── Input card ───────────────────────────────────────────────────────── */
+    .input-card { background: var(--bg-surface); border: 1px solid var(--border); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: var(--radius-lg); padding: 8px 8px 8px 20px; display: flex; align-items: center; gap: 12px; max-width: 680px; margin: 0 auto; box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255,255,255,.06); transition: border-color .2s, box-shadow .2s; }
+    .input-card:focus-within { border-color: var(--border-glow); box-shadow: var(--shadow-card), 0 0 0 3px rgba(99,102,241,.15), 0 0 24px rgba(99,102,241,.2), inset 0 1px 0 rgba(255,255,255,.06); }
+    .input-icon { color: var(--text-muted); flex-shrink: 0; width: 20px; height: 20px; }
+    #repo-input { flex: 1; background: transparent; border: none; outline: none; font-family: var(--font-body); font-size: .975rem; color: var(--text-primary); caret-color: var(--accent-1); }
+    #repo-input::placeholder { color: var(--text-muted); }
+    .paste-btn { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 6px; border-radius: var(--radius-sm); transition: color .15s, background .15s; display: flex; align-items: center; }
+    .paste-btn:hover { color: var(--text-secondary); background: var(--bg-surface-hov); }
+    .analyze-btn { font-family: var(--font-heading); font-size: .9rem; font-weight: 700; letter-spacing: .01em; color: #fff; background: linear-gradient(135deg,var(--accent-1),var(--accent-2),var(--accent-3)); background-size: 200% 200%; border: none; cursor: pointer; padding: 13px 28px; border-radius: calc(var(--radius-lg) - 8px); flex-shrink: 0; position: relative; overflow: hidden; transition: transform .18s, box-shadow .18s; box-shadow: 0 4px 20px rgba(99,102,241,.4); animation: gradient-shift 4s ease infinite; }
+    @keyframes gradient-shift { 0% { background-position:0% 50%; } 50% { background-position:100% 50%; } 100% { background-position:0% 50%; } }
+    .analyze-btn:hover:not(:disabled) { transform: translateY(-1px) scale(1.02); box-shadow: 0 8px 32px rgba(99,102,241,.55); }
+    .analyze-btn:active:not(:disabled) { transform: scale(.97); }
+    .analyze-btn:disabled { opacity: .6; cursor: not-allowed; }
+    .ripple { position: absolute; border-radius: 50%; background: rgba(255,255,255,.35); transform: scale(0); animation: ripple-anim .5s linear; pointer-events: none; }
+    @keyframes ripple-anim { to { transform: scale(4); opacity: 0; } }
+
+    /* ── Repo badge ───────────────────────────────────────────────────────── */
+    .repo-badge { display: none; align-items: center; gap: 8px; justify-content: center; margin-top: 20px; }
+    .repo-badge.visible { display: inline-flex; }
+    .repo-badge-inner { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); border-radius: 999px; padding: 6px 14px 6px 10px; font-size: .8rem; color: var(--text-secondary); }
+
+    /* ── History chips ────────────────────────────────────────────────────── */
+    .history-row { display: none; align-items: center; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+    .history-row.visible { display: flex; }
+    .history-label { font-size: .68rem; color: var(--text-muted); }
+    .history-chip { font-size: .72rem; font-weight: 500; color: var(--text-secondary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; cursor: pointer; transition: color .15s, border-color .15s, background .15s; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+    .history-chip:hover { color: var(--text-primary); border-color: rgba(168,85,247,.4); background: rgba(168,85,247,.08); }
+
+    /* ── Loading ──────────────────────────────────────────────────────────── */
+    #loading { display: none; flex-direction: column; align-items: center; gap: 24px; padding: 80px 0; }
+    #loading.visible { display: flex; }
+    .spinner-ring { width: 56px; height: 56px; border-radius: 50%; border: 2px solid rgba(255,255,255,.07); border-top-color: var(--accent-1); border-right-color: var(--accent-2); animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-family: var(--font-heading); font-size: 1rem; font-weight: 500; color: var(--text-secondary); }
+    .loading-steps { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    .step-pill { font-size: .72rem; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); transition: all .35s; }
+    .step-pill.active { border-color: var(--accent-1); color: var(--accent-1); background: rgba(99,102,241,.1); }
+
+    /* ── Error card ───────────────────────────────────────────────────────── */
+    #error-card { display: none; background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.25); border-radius: var(--radius-md); padding: 24px 28px; max-width: 680px; margin: 32px auto 0; }
+    #error-card.visible { display: flex; align-items: flex-start; gap: 16px; }
+    .error-icon { flex-shrink: 0; width: 36px; height: 36px; background: rgba(239,68,68,.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #f87171; }
+    .error-title { font-family: var(--font-heading); font-size: .95rem; font-weight: 600; color: #fca5a5; margin-bottom: 6px; }
+    .error-msg { font-size: .85rem; color: #f87171; line-height: 1.5; }
+    .retry-btn { margin-top: 14px; font-size: .8rem; font-weight: 600; color: #f87171; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3); border-radius: var(--radius-sm); padding: 7px 16px; cursor: pointer; transition: background .15s; }
+    .retry-btn:hover { background: rgba(239,68,68,.2); }
+
+    /* ── Results ──────────────────────────────────────────────────────────── */
+    #results { display: none; margin-top: 64px; }
+    #results.visible { display: block; }
+    .results-header { text-align: center; margin-bottom: 40px; }
+    .results-label { font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent-2); margin-bottom: 10px; }
+    .results-title { font-family: var(--font-heading); font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; color: var(--text-primary); }
+    .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 768px) { .results-grid { grid-template-columns: 1fr; } }
+
+    /* ── Glass card ───────────────────────────────────────────────────────── */
+    .glass-card { background: var(--bg-surface); border: 1px solid var(--border); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: var(--radius-md); box-shadow: var(--shadow-card); overflow: hidden; transition: border-color .2s, box-shadow .25s, transform .25s; }
+    .glass-card:hover { border-color: rgba(255,255,255,.12); box-shadow: var(--shadow-card), 0 8px 40px rgba(99,102,241,.15); transform: translateY(-2px); }
+    .card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 22px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.02); }
+    .card-header-left { display: flex; align-items: center; gap: 10px; }
+    .card-icon { width: 32px; height: 32px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .card-icon-summary { background: rgba(99,102,241,.15); color: var(--accent-1); }
+    .card-icon-diagram { background: rgba(168,85,247,.15); color: var(--accent-2); }
+    .card-title { font-family: var(--font-heading); font-size: .85rem; font-weight: 600; color: var(--text-primary); }
+    .card-subtitle { font-size: .72rem; color: var(--text-muted); margin-top: 1px; }
+    .card-body { padding: 24px 22px; }
+    #summary-text { font-size: .925rem; line-height: 1.8; color: var(--text-secondary); }
+    #summary-text strong { color: var(--text-primary); font-weight: 600; display: block; margin: 14px 0 4px; }
+    #summary-text strong:first-child { margin-top: 0; }
+    #summary-text ul { list-style: none; padding: 0; margin: 0 0 4px; }
+    #summary-text li { padding: 2px 0 2px 16px; position: relative; }
+    #summary-text li::before { content: '–'; position: absolute; left: 0; color: var(--accent-1); }
+
+    /* ── Copy button ──────────────────────────────────────────────────────── */
+    .copy-btn { display: flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 500; color: var(--text-muted); background: none; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 5px 10px; cursor: pointer; transition: color .15s, border-color .15s, background .15s; flex-shrink: 0; }
+    .copy-btn:hover { color: var(--text-secondary); border-color: var(--border); background: var(--bg-surface-hov); }
+    .copy-btn.copied { color: #34d399; border-color: rgba(52,211,153,.3); background: rgba(52,211,153,.07); }
+
+    /* ── Diagram container — plain, no tricks ─────────────────────────────── */
+    #diagram-container { width: 100%; }
+    #diagram-container svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 0 12px rgba(99,102,241,.15)); }
+
+    /* ── Repo stat chips ─────────────────────────────────────────────────── */
+    #stats-row { display: none; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
+    #stats-row.visible { display: flex; }
+    .stat-chip { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 500; color: var(--text-secondary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
+    .stat-chip svg { color: var(--text-muted); flex-shrink: 0; }
+    .stat-chip.shimmer { color: transparent; border-color: transparent; background: linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.09) 50%, rgba(255,255,255,.04) 75%); background-size: 200% 100%; animation: shimmer-slide 1.4s ease infinite; min-width: 90px; }
+    @keyframes shimmer-slide { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ── Tech stack badges ────────────────────────────────────────────────── */
+    #lang-row { display: none; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 32px; }
+    #lang-row.visible { display: flex; }
+    .lang-badge { display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 600; border-radius: 999px; padding: 4px 12px; border: 1px solid transparent; }
+    .lang-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── Download button ──────────────────────────────────────────────────── */
+    .download-btn { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-heading); font-size: .8rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 16px; cursor: pointer; transition: color .15s, border-color .15s, background .15s, box-shadow .15s; }
+    .download-btn:hover { color: var(--text-primary); border-color: rgba(99,102,241,.4); background: rgba(99,102,241,.08); box-shadow: 0 0 16px rgba(99,102,241,.15); }
+
+    /* ── Raw JSON toggle ──────────────────────────────────────────────────── */
+    .raw-toggle-row { margin-top: 32px; display: flex; justify-content: center; }
+    .raw-toggle-btn { display: flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 500; color: var(--text-muted); background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 16px; cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
+    .raw-toggle-btn:hover { color: var(--text-secondary); border-color: rgba(255,255,255,.15); background: var(--bg-surface); }
+    .raw-toggle-btn .chevron { transition: transform .25s; display: inline-block; }
+    .raw-toggle-btn.open .chevron { transform: rotate(180deg); }
+    #raw-panel { display: none; margin-top: 12px; background: rgba(0,0,0,.35); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+    #raw-panel.visible { display: block; }
+    #raw-pre { padding: 20px 24px; font-family: 'Courier New', monospace; font-size: .75rem; color: #94a3b8; white-space: pre-wrap; word-break: break-all; max-height: 340px; overflow-y: auto; line-height: 1.6; }
+
+    /* ── Animations ───────────────────────────────────────────────────────── */
+    @keyframes fade-up { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── Footer ───────────────────────────────────────────────────────────── */
+    footer { text-align: center; padding: 48px 0 0; color: var(--text-muted); font-size: .78rem; }
+    footer a { color: var(--text-muted); text-decoration: underline; text-underline-offset: 3px; }
+
+    /* ── Scrollbar ────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 999px; }
+  </style>
+</head>
+<body>
+
+<div class="bg-canvas">
+  <div class="bg-grid"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="page">
+
+  <nav>
+    <span class="nav-logo">RepoPulse</span>
+    <span class="nav-badge">Powered by Gemini 2.0</span>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-eyebrow">AI-powered architecture analysis</div>
+    <h1><span class="h1-gradient">Understand any<br>codebase in seconds</span></h1>
+    <p class="hero-tagline">Paste a GitHub URL and get an AI-generated architecture summary and interactive diagram — instantly.</p>
+
+    <div class="examples-row">
+      <span class="examples-label">Try an example:</span>
+      <span class="example-chip" data-url="https://github.com/facebook/react">facebook/react</span>
+      <span class="example-chip" data-url="https://github.com/expressjs/express">expressjs/express</span>
+      <span class="example-chip" data-url="https://github.com/octocat/Hello-World">octocat/Hello-World</span>
+    </div>
+
+    <div class="input-card">
+      <svg class="input-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+      </svg>
+      <input id="repo-input" type="url" placeholder="https://github.com/owner/repository" autocomplete="off" spellcheck="false" />
+      <button class="paste-btn" id="paste-btn" title="Paste from clipboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+        </svg>
+      </button>
+      <button class="analyze-btn" id="analyze-btn">Analyze →</button>
+    </div>
+
+    <div class="repo-badge" id="repo-badge">
+      <div class="repo-badge-inner">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+        </svg>
+        <span id="repo-badge-text"></span>
+      </div>
+    </div>
+
+    <div class="history-row" id="history-row">
+      <span class="history-label">Recent:</span>
+      <div id="history-chips"></div>
+    </div>
+  </section>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="spinner-ring"></div>
+    <div class="loading-text" id="loading-text">Fetching repository…</div>
+    <div class="loading-steps">
+      <span class="step-pill active" id="step-0">Fetching repository</span>
+      <span class="step-pill" id="step-1">Analyzing structure</span>
+      <span class="step-pill" id="step-2">Generating diagram</span>
+      <span class="step-pill" id="step-3">Almost done</span>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="error-card">
+    <div class="error-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <div>
+      <div class="error-title">Something went wrong</div>
+      <div class="error-msg" id="error-msg">An unexpected error occurred.</div>
+      <button class="retry-btn" id="retry-btn">Try again</button>
+    </div>
+  </div>
+
+  <!-- Results — shown BEFORE renderDiagram() is called so Mermaid has real dimensions -->
+  <section id="results">
+    <div class="results-header">
+      <div class="results-label">Analysis complete</div>
+      <div class="results-title" id="results-title">Architecture Overview</div>
+      <div style="margin-top:16px;">
+        <button class="download-btn" id="download-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download Guide
+        </button>
+      </div>
+    </div>
+
+    <div id="stats-row">
+      <div class="stat-chip shimmer" id="stat-stars">&nbsp;</div>
+      <div class="stat-chip shimmer" id="stat-lang">&nbsp;</div>
+      <div class="stat-chip shimmer" id="stat-updated">&nbsp;</div>
+    </div>
+
+    <div id="lang-row" aria-label="Detected languages"></div>
+
+    <div class="results-grid">
+
+      <!-- Summary card -->
+      <div class="glass-card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <div class="card-icon card-icon-summary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+            </div>
+            <div>
+              <div class="card-title">Architecture Summary</div>
+              <div class="card-subtitle">AI-generated overview</div>
+            </div>
+          </div>
+          <button class="copy-btn" id="copy-summary-btn" title="Copy summary">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+            <span class="copy-label">Copy</span>
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="summary-text"></div>
+        </div>
+      </div>
+
+      <!-- Diagram card -->
+      <div class="glass-card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <div class="card-icon card-icon-diagram">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+            </div>
+            <div>
+              <div class="card-title">Architecture Diagram</div>
+              <div class="card-subtitle">Mermaid.js</div>
+            </div>
+          </div>
+          <button class="copy-btn" id="copy-diagram-btn" title="Copy Mermaid source">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+            </svg>
+            <span class="copy-label">Copy</span>
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="diagram-container"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="raw-toggle-row">
+      <button class="raw-toggle-btn" id="raw-toggle-btn">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+        </svg>
+        View raw response
+        <span class="chevron">▾</span>
+      </button>
+    </div>
+    <div id="raw-panel">
+      <pre id="raw-pre"></pre>
+    </div>
+  </section>
+
+  <footer>
+    <p>RepoPulse &mdash; built with AWS Lambda &amp; Google Gemini &bull; <a href="https://github.com" target="_blank">GitHub</a></p>
+  </footer>
+
+</div>
+
+<script>
+  /* ── Config ──────────────────────────────────────────────────────────────── */
+  const API_URL     = 'https://zjcq3wk4d4fmi3ms3tauaitfda0clfmc.lambda-url.us-east-1.on.aws/';
+  const STEPS = [
+    'Fetching repository…',
+    'Analyzing file structure…',
+    'Generating architecture summary…',
+    'Rendering diagram…',
+    'Almost there…',
+  ];
+  const HISTORY_MAX = 5;
+
+  /* ── Mermaid — initialize once, startOnLoad: false ───────────────────────── */
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#6366f1', primaryTextColor: '#f1f5f9', primaryBorderColor: '#4f46e5',
+      lineColor: '#6366f1', secondaryColor: '#1e1b4b', tertiaryColor: '#0f172a',
+      background: '#080c18', mainBkg: '#1e1b4b', nodeBorder: '#4f46e5',
+      clusterBkg: '#1e1b4b', titleColor: '#f1f5f9', edgeLabelBackground: '#1e293b',
+      fontFamily: 'Inter, sans-serif',
+    },
+    flowchart: { curve: 'basis', htmlLabels: true },
+    securityLevel: 'loose',
+  });
+
+  /* ── DOM refs ────────────────────────────────────────────────────────────── */
+  const inputEl         = document.getElementById('repo-input');
+  const analyzeBtn      = document.getElementById('analyze-btn');
+  const pasteBtn        = document.getElementById('paste-btn');
+  const loadingEl       = document.getElementById('loading');
+  const loadingText     = document.getElementById('loading-text');
+  const errorCard       = document.getElementById('error-card');
+  const errorMsg        = document.getElementById('error-msg');
+  const retryBtn        = document.getElementById('retry-btn');
+  const resultsEl       = document.getElementById('results');
+  const summaryText     = document.getElementById('summary-text');
+  const diagramContainer = document.getElementById('diagram-container');
+  const repoBadge       = document.getElementById('repo-badge');
+  const repoBadgeText   = document.getElementById('repo-badge-text');
+  const resultsTitle    = document.getElementById('results-title');
+  const historyRow      = document.getElementById('history-row');
+  const historyChips    = document.getElementById('history-chips');
+  const rawToggleBtn    = document.getElementById('raw-toggle-btn');
+  const rawPanel        = document.getElementById('raw-panel');
+  const rawPre          = document.getElementById('raw-pre');
+  const copySummaryBtn  = document.getElementById('copy-summary-btn');
+  const copyDiagramBtn  = document.getElementById('copy-diagram-btn');
+
+  /* ── State ───────────────────────────────────────────────────────────────── */
+  let stepInterval   = null;
+  let currentStep    = 0;
+  let history        = [];
+  let currentSummary = '';
+  let currentDiagram = '';
+
+  /* ── Utilities ───────────────────────────────────────────────────────────── */
+  function show(el) { el.classList.add('visible'); }
+  function hide(el) { el.classList.remove('visible'); }
+
+  function parseSlug(url) {
+    try {
+      let s = url.trim().replace(/\.git$/,'').replace(/\/$/,'');
+      if (!s.startsWith('http')) s = 'https://' + s;
+      const parts = new URL(s).pathname.split('/').filter(Boolean);
+      if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
+    } catch {}
+    return null;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  /* ── Lightweight Markdown → HTML renderer ───────────────────────────────── */
+  // Handles: **bold** section headers on their own line, - bullet lists.
+  // Everything else is treated as plain text wrapped in a <p>.
+  function mdToHtml(md) {
+    if (!md) return '';
+    const lines  = md.split('\n');
+    const parts  = [];
+    let listOpen = false;
+
+    const closeList = () => { if (listOpen) { parts.push('</ul>'); listOpen = false; } };
+
+    for (const raw of lines) {
+      const line = raw.trim();
+
+      // Bullet line: "- text" or "* text"
+      if (/^[-*]\s+/.test(line)) {
+        if (!listOpen) { parts.push('<ul>'); listOpen = true; }
+        const content = escapeHtml(line.replace(/^[-*]\s+/, ''));
+        parts.push(`<li>${content}</li>`);
+        continue;
+      }
+
+      closeList();
+
+      if (line === '') continue;   // blank line — skip (spacing comes from CSS)
+
+      // Bold header: **text** alone on a line
+      const boldMatch = line.match(/^\*\*(.+?)\*\*\s*$/);
+      if (boldMatch) {
+        parts.push(`<strong>${escapeHtml(boldMatch[1])}</strong>`);
+        continue;
+      }
+
+      // Inline bold within a regular paragraph line
+      const inlined = escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      parts.push(`<p style="margin:0 0 4px;">${inlined}</p>`);
+    }
+
+    closeList();
+    return parts.join('');
+  }
+
+  function renderSummary(text) {
+    summaryText.innerHTML = mdToHtml(text);
+  }
+  async function handleCopy(btn, getText) {
+    try {
+      await navigator.clipboard.writeText(getText());
+      btn.classList.add('copied');
+      btn.querySelector('.copy-label').textContent = 'Copied!';
+      setTimeout(() => { btn.classList.remove('copied'); btn.querySelector('.copy-label').textContent = 'Copy'; }, 2000);
+    } catch {}
+  }
+  copySummaryBtn.addEventListener('click', () => handleCopy(copySummaryBtn, () => currentSummary));
+  copyDiagramBtn.addEventListener('click', () => handleCopy(copyDiagramBtn, () => currentDiagram));
+
+  /* ── Loading steps ───────────────────────────────────────────────────────── */
+  function startStepCycle() {
+    currentStep = 0; updateStep(0);
+    // Cycle through messages every 2s; hold on the last one
+    stepInterval = setInterval(() => {
+      currentStep = Math.min(currentStep + 1, STEPS.length - 1);
+      updateStep(currentStep);
+    }, 2000);
+  }
+  function updateStep(i) {
+    loadingText.textContent = STEPS[i];
+    // Only advance the pill highlight through the first four steps
+    const pillCount = document.querySelectorAll('.step-pill').length;
+    const pillIdx   = Math.min(i, pillCount - 1);
+    for (let idx = 0; idx < pillCount; idx++) {
+      document.getElementById(`step-${idx}`).classList.toggle('active', idx === pillIdx);
+    }
+  }
+  function stopStepCycle() { clearInterval(stepInterval); stepInterval = null; }
+
+  function setLoading(on) {
+    analyzeBtn.disabled = on;
+    analyzeBtn.textContent = on ? 'Analyzing…' : 'Analyze →';
+    on ? show(loadingEl) : hide(loadingEl);
+    if (on) startStepCycle(); else stopStepCycle();
+  }
+
+  /* ── Error ───────────────────────────────────────────────────────────────── */
+  function showError(msg) { errorMsg.textContent = msg; show(errorCard); }
+  function hideError()    { hide(errorCard); }
+
+  /* ── Diagram render — the whole thing ───────────────────────────────────── */
+  async function renderDiagram(code) {
+    diagramContainer.innerHTML = '';
+    try {
+      // mermaid.render() returns an SVG string. The container is already
+      // visible (results section shown before this call), so Mermaid gets
+      // real dimensions for text measurement.
+      const { svg } = await mermaid.render('repopulse-diagram', code);
+      diagramContainer.innerHTML = svg;
+
+      // Strip Mermaid's hardcoded pixel width/height so CSS width:100% applies
+      const svgEl = diagramContainer.querySelector('svg');
+      if (svgEl) {
+        svgEl.removeAttribute('width');
+        svgEl.removeAttribute('height');
+      }
+    } catch {
+      diagramContainer.innerHTML =
+        `<pre style="font-size:.75rem;color:var(--text-muted);white-space:pre-wrap;">${escapeHtml(code)}</pre>`;
+    }
+  }
+
+  /* ── Raw JSON toggle ─────────────────────────────────────────────────────── */
+  rawToggleBtn.addEventListener('click', () => {
+    const open = rawPanel.classList.toggle('visible');
+    rawToggleBtn.classList.toggle('open', open);
+  });
+
+  /* ── History ─────────────────────────────────────────────────────────────── */
+  function addToHistory(entry) {
+    history = history.filter(h => h.url !== entry.url);
+    history.unshift(entry);
+    if (history.length > HISTORY_MAX) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (!history.length) { hide(historyRow); return; }
+    historyChips.innerHTML = '';
+    history.forEach(entry => {
+      const chip = document.createElement('span');
+      chip.className = 'history-chip';
+      chip.textContent = entry.slug || entry.url;
+      chip.title = entry.url;
+      chip.addEventListener('click', () => loadFromHistory(entry));
+      historyChips.appendChild(chip);
+    });
+    show(historyRow);
+  }
+
+  function loadFromHistory(entry) {
+    inputEl.value    = entry.url;
+    currentSummary   = entry.summary;
+    currentDiagram   = entry.diagram;
+    renderSummary(entry.summary);
+    resultsTitle.textContent = entry.slug || 'Architecture Overview';
+    repoBadgeText.textContent = entry.slug || '';
+    entry.slug ? show(repoBadge) : hide(repoBadge);
+    rawPre.textContent = JSON.stringify(entry.raw, null, 2);
+    hide(rawPanel); rawToggleBtn.classList.remove('open');
+    // Show section first, then render — same order as analyze()
+    show(resultsEl);
+    renderDiagram(entry.diagram);
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ── Ripple ──────────────────────────────────────────────────────────────── */
+  analyzeBtn.addEventListener('click', function(e) {
+    const rect = this.getBoundingClientRect();
+    const rip  = document.createElement('span');
+    const size = Math.max(rect.width, rect.height);
+    rip.className = 'ripple';
+    rip.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+    this.appendChild(rip);
+    rip.addEventListener('animationend', () => rip.remove());
+  });
+
+  /* ── Example chips ───────────────────────────────────────────────────────── */
+  document.querySelectorAll('.example-chip').forEach(chip =>
+    chip.addEventListener('click', () => { inputEl.value = chip.dataset.url; analyze(); })
+  );
+
+  /* ── GitHub metadata ─────────────────────────────────────────────────────── */
+  const LANG_COLORS = {
+    JavaScript: { bg:'rgba(247,223,30,.15)',  border:'rgba(247,223,30,.35)',  dot:'#f7df1e', text:'#fde68a' },
+    TypeScript: { bg:'rgba(49,120,198,.15)',  border:'rgba(49,120,198,.35)',  dot:'#3178c6', text:'#93c5fd' },
+    Python:     { bg:'rgba(55,118,171,.15)',  border:'rgba(55,118,171,.35)',  dot:'#3776ab', text:'#93c5fd' },
+    Rust:       { bg:'rgba(222,165,132,.12)', border:'rgba(222,165,132,.3)',  dot:'#dea584', text:'#fcd9bd' },
+    Go:         { bg:'rgba(0,173,216,.12)',   border:'rgba(0,173,216,.3)',    dot:'#00add8', text:'#7dd3fc' },
+    Java:       { bg:'rgba(237,117,43,.12)',  border:'rgba(237,117,43,.3)',   dot:'#ed752b', text:'#fdba74' },
+    'C++':      { bg:'rgba(243,75,125,.12)',  border:'rgba(243,75,125,.3)',   dot:'#f34b7d', text:'#fda4af' },
+    Ruby:       { bg:'rgba(204,52,45,.12)',   border:'rgba(204,52,45,.3)',    dot:'#cc342d', text:'#fca5a5' },
+    PHP:        { bg:'rgba(119,123,179,.15)', border:'rgba(119,123,179,.35)',dot:'#777bb3', text:'#c4b5fd' },
+    Swift:      { bg:'rgba(240,81,42,.12)',   border:'rgba(240,81,42,.3)',    dot:'#f05138', text:'#fdba74' },
+    Kotlin:     { bg:'rgba(127,82,255,.15)',  border:'rgba(127,82,255,.35)',  dot:'#7f52ff', text:'#c4b5fd' },
+    CSS:        { bg:'rgba(86,61,124,.12)',   border:'rgba(86,61,124,.3)',    dot:'#563d7c', text:'#d8b4fe' },
+    HTML:       { bg:'rgba(227,76,38,.12)',   border:'rgba(227,76,38,.3)',    dot:'#e34c26', text:'#fdba74' },
+    Shell:      { bg:'rgba(137,224,81,.1)',   border:'rgba(137,224,81,.25)', dot:'#89e051', text:'#bbf7d0' },
+  };
+  const LANG_DEFAULT = { bg:'rgba(255,255,255,.06)', border:'rgba(255,255,255,.12)', dot:'#64748b', text:'#94a3b8' };
+
+  function formatStars(n) { return n >= 1000 ? (n/1000).toFixed(1).replace(/\.0$/,'')+'k' : String(n); }
+  function formatDate(iso) { return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+
+  function setStatChip(id, svgPath, text) {
+    const el = document.getElementById(id);
+    el.classList.remove('shimmer');
+    el.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgPath}</svg>${escapeHtml(text)}`;
+  }
+
+  function showStatsShimmer() {
+    ['stat-stars','stat-lang','stat-updated'].forEach(id => {
+      const el = document.getElementById(id); el.classList.add('shimmer'); el.innerHTML = '&nbsp;';
+    });
+    show(document.getElementById('stats-row'));
+    hide(document.getElementById('lang-row'));
+  }
+
+  async function fetchGitHubMeta(owner, repo) {
+    showStatsShimmer();
+    try {
+      const headers = { 'Accept': 'application/vnd.github+json' };
+      const [repoRes, langRes] = await Promise.all([
+        fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers }),
+        fetch(`https://api.github.com/repos/${owner}/${repo}/languages`, { headers }),
+      ]);
+      if (!repoRes.ok) throw new Error();
+      const repoData = await repoRes.json();
+      setStatChip('stat-stars', '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>', `${formatStars(repoData.stargazers_count)} stars`);
+      const LANG_DOT_COLORS = {
+        JavaScript:'#f1e05a', Python:'#3572A5', TypeScript:'#2b7489',
+        Java:'#b07219', HTML:'#e34c26', CSS:'#563d7c',
+        Ruby:'#701516', Go:'#00add8', Rust:'#dea584',
+        'C++':'#f34b7d', Swift:'#f05138', Kotlin:'#7f52ff', PHP:'#777bb3',
+      };
+      const langName  = repoData.language || 'Unknown';
+      const dotColor  = LANG_DOT_COLORS[langName] || '#8b8b8b';
+      const dotSvg    = `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${dotColor};flex-shrink:0;margin-right:2px;"></span>`;
+      const langChip  = document.getElementById('stat-lang');
+      langChip.classList.remove('shimmer');
+      langChip.innerHTML = dotSvg + escapeHtml(langName);
+      setStatChip('stat-updated', '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>', `Updated ${formatDate(repoData.pushed_at)}`);
+      if (langRes.ok) {
+        const langs = await langRes.json();
+        const langRow = document.getElementById('lang-row');
+        langRow.innerHTML = '';
+        const total = Object.values(langs).reduce((a,b)=>a+b,0);
+        Object.entries(langs).sort((a,b)=>b[1]-a[1]).slice(0,8).forEach(([name,bytes]) => {
+          const pct = ((bytes/total)*100).toFixed(1);
+          const c = LANG_COLORS[name] || LANG_DEFAULT;
+          const badge = document.createElement('span');
+          badge.className = 'lang-badge';
+          badge.style.cssText = `background:${c.bg};border-color:${c.border};color:${c.text}`;
+          badge.title = `${pct}% of codebase`;
+          badge.innerHTML = `<span class="lang-dot" style="background:${c.dot}"></span>${escapeHtml(name)} <span style="opacity:.55">${pct}%</span>`;
+          langRow.appendChild(badge);
+        });
+        if (langRow.children.length) show(langRow);
+      }
+    } catch {
+      hide(document.getElementById('stats-row'));
+      hide(document.getElementById('lang-row'));
+    }
+  }
+
+  /* ── Download as Markdown ────────────────────────────────────────────────── */
+  document.getElementById('download-btn').addEventListener('click', () => {
+    const slug  = parseSlug(inputEl.value.trim()) || 'repo';
+    const title = slug.replace('/', ' / ');
+    const md = [
+      `# ${title} — Architecture Guide`,
+      '',
+      `> Generated by [RepoPulse](https://repopulse.dev) on ${new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}`,
+      '',
+      '## Architecture Summary',
+      '',
+      currentSummary,
+      '',
+      '## Architecture Diagram',
+      '',
+      '```mermaid',
+      currentDiagram,
+      '```',
+      '',
+    ].join('\n');
+
+    const blob    = new Blob([md], { type: 'text/markdown' });
+    const url     = URL.createObjectURL(blob);
+    const anchor  = document.createElement('a');
+    anchor.href     = url;
+    anchor.download = `${slug.replace('/', '-')}-architecture-guide.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  });
+
+  /* ── Core analyze ────────────────────────────────────────────────────────── */
+  async function analyze() {
+    const url = inputEl.value.trim();
+    if (!url) { inputEl.focus(); return; }
+
+    hideError();
+    setLoading(true);
+
+    const slug = parseSlug(url);
+    repoBadgeText.textContent = slug || '';
+    slug ? show(repoBadge) : hide(repoBadge);
+
+    // Kick off GitHub metadata fetch in parallel (non-blocking)
+    if (slug) {
+      const [owner, repo] = slug.split('/');
+      fetchGitHubMeta(owner, repo);
+    } else {
+      hide(document.getElementById('stats-row'));
+      hide(document.getElementById('lang-row'));
+    }
+
+    try {
+      const res  = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_url: url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `Server error (${res.status})`);
+
+      currentSummary = data.summary || '(no summary returned)';
+      currentDiagram = data.diagram || 'graph TD\n  A[No diagram returned]';
+
+      renderSummary(currentSummary);
+      resultsTitle.textContent = slug || 'Architecture Overview';
+      rawPre.textContent       = JSON.stringify(data, null, 2);
+      hide(rawPanel); rawToggleBtn.classList.remove('open');
+
+      // Show the section FIRST so Mermaid renders into a visible container
+      // with real dimensions — prevents garbled/overlapping node layout.
+      show(resultsEl);
+
+      await renderDiagram(currentDiagram);
+
+      addToHistory({ url, slug, summary: currentSummary, diagram: currentDiagram, raw: data });
+      resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } catch (err) {
+      showError(err.message || 'Could not reach the analysis service. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* ── Events ──────────────────────────────────────────────────────────────── */
+  analyzeBtn.addEventListener('click', analyze);
+  inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') analyze(); });
+  pasteBtn.addEventListener('click', async () => {
+    try { inputEl.value = (await navigator.clipboard.readText()).trim(); } catch {}
+    inputEl.focus();
+  });
+  retryBtn.addEventListener('click', () => { hideError(); analyze(); });
+</script>
+</body>
+</html>

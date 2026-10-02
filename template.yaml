@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  RepoPulse - Generates architecture overviews and contributor guides
+  for GitHub repositories using Google Gemini.
+
+Parameters:
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Description: Google Gemini API key
+
+Globals:
+  Function:
+    Runtime: python3.10
+    Timeout: 120
+    MemorySize: 256
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref RepoPulseTable
+        GEMINI_API_KEY: !Ref GeminiApiKey
+
+Resources:
+
+  # ── Lambda Function ────────────────────────────────────────────────────────
+  RepoPulseFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: RepoPulseFunction
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Description: Fetches a GitHub repo, analyses it with Gemini, caches in DynamoDB.
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowCredentials: false
+          AllowMethods:
+            - POST
+            - GET
+          AllowOrigins:
+            - '*'
+          AllowHeaders:
+            - Content-Type
+      Policies:
+        # DynamoDB – read/write the cache table
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RepoPulseTable
+
+  # ── DynamoDB Cache Table ───────────────────────────────────────────────────
+  RepoPulseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: RepoPulseCache
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: repo_url
+          AttributeType: S
+      KeySchema:
+        - AttributeName: repo_url
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+Outputs:
+  RepoPulseFunctionUrl:
+    Description: Function URL for the RepoPulse Lambda
+    Value: !GetAtt RepoPulseFunctionUrl.FunctionUrl
+  RepoPulseTableName:
+    Description: DynamoDB table used for caching results
+    Value: !Ref RepoPulseTable

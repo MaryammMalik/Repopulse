@@ -1,0 +1,5 @@
+boto3==1.34.144
+requests==2.32.3
+google-genai==2.12.0
+annotated-types
+pydantic

@@ -48,3 +48,5 @@ ENV/
 .coverage
 htmlcov/
 samconfig.toml
+key.json
+policy.json
